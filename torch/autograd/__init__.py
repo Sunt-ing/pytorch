@@ -127,14 +127,13 @@ def _make_grads(
         if isinstance(grad, torch.Tensor):
             from torch.fx.experimental.symbolic_shapes import expect_true, sym_eq
 
-            first_grad = grad if not is_grads_batched else grad[0]
-
             # TODO: We can remove this conditional once we uniformly use
             # singleton int to represent jagged dimension, so that size() call
             # on nested tensor works.
             if out_is_cpp_nested:
                 if not isinstance(out, torch.Tensor):
                     raise AssertionError("Expected output to be a torch.Tensor.")
+                first_grad = grad if not is_grads_batched else grad[0]
                 shape_matches = torch.is_same_size(out, first_grad)
             else:
                 # We need to do a regular size check, without going through
@@ -142,13 +141,12 @@ def _make_grads(
                 # (expect_true ensures we can deal with unbacked)
                 if out_size is None:
                     raise AssertionError("Expected out_size to be set.")
-                shape_matches = expect_true(sym_eq(out_size, first_grad.size()))
+                grad_shape = grad.shape[1:] if is_grads_batched else grad.shape
+                shape_matches = expect_true(sym_eq(out_size, grad_shape))
 
             if not shape_matches:
                 out = cast(torch.Tensor | graph.GradientEdge, out)  # type: ignore[redundant-cast]
-                out_shape, grad_shape = _calculate_shape(
-                    out, first_grad, is_grads_batched
-                )
+                out_shape, grad_shape = _calculate_shape(out, grad, is_grads_batched)
                 if is_grads_batched:
                     raise RuntimeError(
                         "If `is_grads_batched=True`, we interpret the first "
@@ -608,8 +606,21 @@ def grad(
             raise RuntimeError(
                 "materialize_grads cannot be used when the given input is a GradientEdge"
             )
+        grad_batch_size = None
+        if is_grads_batched:
+            for grad_output in grad_outputs_:
+                if isinstance(grad_output, torch.Tensor):
+                    grad_batch_size = grad_output.shape[0]
+                    break
+
+        def materialize_grad(inp: torch.Tensor) -> torch.Tensor:
+            grad = torch.zeros_like(inp, requires_grad=create_graph)
+            if grad_batch_size is not None:
+                grad = grad.expand(grad_batch_size, *grad.shape).clone()
+            return grad
+
         result = tuple(
-            r if r is not None else torch.zeros_like(inp, requires_grad=create_graph)
+            r if r is not None else materialize_grad(inp)
             for (r, inp) in zip(
                 result,
                 cast(tuple[torch.Tensor, ...], inputs_tuple),

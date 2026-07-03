@@ -1987,6 +1987,42 @@ class TestAutograd(TestCase):
                 is_grads_batched=True,
             )
 
+    def test_grad_batched_grad_materialize_unused_grads(self):
+        batch_size = 3
+        x = torch.randn(2, requires_grad=True)
+        y = torch.randn(4, requires_grad=True)
+        out = (x * 2).sum()
+
+        grad_x, grad_y = torch.autograd.grad(
+            out,
+            (x, y),
+            grad_outputs=torch.ones(batch_size),
+            is_grads_batched=True,
+            allow_unused=True,
+            materialize_grads=True,
+        )
+
+        self.assertEqual(grad_x, torch.full((batch_size, 2), 2.0))
+        self.assertEqual(grad_y, torch.zeros(batch_size, 4))
+
+    def test_grad_batched_grad_materialize_unused_grads_empty_batch(self):
+        batch_size = 0
+        x = torch.randn(2, requires_grad=True)
+        y = torch.randn(4, requires_grad=True)
+        out = (x * 2).sum()
+
+        grad_x, grad_y = torch.autograd.grad(
+            out,
+            (x, y),
+            grad_outputs=torch.ones(batch_size),
+            is_grads_batched=True,
+            allow_unused=True,
+            materialize_grads=True,
+        )
+
+        self.assertEqual(grad_x.shape, (batch_size, 2))
+        self.assertEqual(grad_y.shape, (batch_size, 4))
+
     def test_hooks(self):
         x = torch.ones(5, 5, requires_grad=True)
         y = torch.ones(5, 5) * 4
