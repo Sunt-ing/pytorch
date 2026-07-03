@@ -15490,6 +15490,13 @@ if __name__ == '__main__':
         self.assertTrue(gradcheck(F.pdist, (inp,)))
 
     @skipMPS
+    def test_pdist_no_rows_backward(self, device):
+        inp = torch.randn(0, 3, dtype=torch.double, device=device, requires_grad=True)
+        self.assertEqual(F.pdist(inp), torch.empty(0, dtype=inp.dtype, device=device))
+        F.pdist(inp).sum().backward()
+        self.assertEqual(inp.grad, torch.zeros_like(inp))
+
+    @skipMPS
     def test_pdist_empty_col(self, device):
         inp = torch.randn(4, 0, dtype=torch.double, device=device, requires_grad=True)
         self.assertTrue(gradcheck(F.pdist, (inp,)))

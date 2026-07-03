@@ -266,6 +266,9 @@ Tensor _pdist_backward(const Tensor& grad, const Tensor& self, const double p, c
   auto device = self.device().type();
   TORCH_CHECK(device == kCPU || device == kCUDA || device == kXPU || device == kPrivateUse1, "_pdist_backward only supports CPU, XPU, CUDA and PrivateUse1 devices, got: ", device);
   Tensor result = at::empty_like(self, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+  if (self.size(0) <= 1) {
+    return result.zero_();
+  }
   pdist_backward_stub(device, result, grad, self, p, pdist);
   return result;
 }
