@@ -9855,6 +9855,30 @@ class TestNNDeviceType(NNTestCase):
                 y = torch.ones(10, 0, device=device).type(torch.long)
                 mod(x, y)
 
+    def _test_multi_margin_loss_empty_reduction(self, device, dtype):
+        x = torch.randn(0, 10, requires_grad=True, device=device, dtype=dtype)
+        y = torch.ones(0, device=device, dtype=torch.long)
+
+        self.assertEqual(
+            F.multi_margin_loss(x, y, reduction="none"),
+            torch.empty(0, device=device, dtype=dtype),
+        )
+        self.assertEqual(
+            F.multi_margin_loss(x, y, reduction="sum"),
+            torch.zeros((), device=device, dtype=dtype),
+        )
+        self.assertTrue(torch.isnan(F.multi_margin_loss(x, y, reduction="mean")))
+
+    @onlyCPU
+    @dtypes(torch.float, torch.double)
+    def test_multi_margin_loss_empty_reduction_cpu(self, device, dtype):
+        self._test_multi_margin_loss_empty_reduction(device, dtype)
+
+    @onlyCUDA
+    @dtypes(torch.float, torch.double)
+    def test_multi_margin_loss_empty_reduction_cuda(self, device, dtype):
+        self._test_multi_margin_loss_empty_reduction(device, dtype)
+
     @onlyCUDA
     @dtypes(torch.float, torch.double)
     def test_MarginLoss_race(self, device, dtype):

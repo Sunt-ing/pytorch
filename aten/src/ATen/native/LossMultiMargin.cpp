@@ -4,6 +4,7 @@
 #include <ATen/Dispatch.h>
 #include <ATen/native/LossMulti.h>
 #include <c10/util/irange.h>
+#include <limits>
 
 #ifndef AT_PER_OPERATOR_HEADERS
 #include <ATen/Functions.h>
@@ -118,6 +119,11 @@ void multi_margin_loss_out_cpu_template(
     output.resize_({});
   }
   if (input.numel() == 0) {
+    if (reduction == Reduction::Mean) {
+      output.fill_(std::numeric_limits<double>::quiet_NaN());
+    } else {
+      output.zero_();
+    }
     return;
   }
 

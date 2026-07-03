@@ -6,6 +6,7 @@
 #include <ATen/native/Resize.h>
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAException.h>
+#include <limits>
 
 #ifndef AT_PER_OPERATOR_HEADERS
 #include <ATen/Functions.h>
@@ -148,6 +149,11 @@ Tensor& multi_margin_loss_cuda_out(
     resize_output(out_, {});
   }
   if (input_.numel() == 0) {
+    if (reduction == Reduction::Mean) {
+      out_.fill_(std::numeric_limits<double>::quiet_NaN());
+    } else {
+      out_.zero_();
+    }
     return out_;
   }
 
