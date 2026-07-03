@@ -7258,6 +7258,38 @@ for dtype in (torch.int32, torch.int64):
             (torch.randn([10, 4]), torch.randint(10, [8]), torch.tensor([0, 2, 6])),
         )
 
+    def test_embedding_bag_sparse_per_sample_weights_backward(self):
+        if self.device != "cpu":
+            raise unittest.SkipTest("CPU sparse embedding_bag backward regression")
+
+        indices = torch.tensor([1, 2, 1, 3, 4], device=self.device)
+        offsets = torch.tensor([0, 3], device=self.device)
+        per_sample_weights = torch.tensor(
+            [0.5, -1.0, 2.0, 0.25, -0.75], device=self.device
+        )
+
+        def fn(weight):
+            return torch.nn.functional.embedding_bag(
+                indices,
+                weight,
+                offsets,
+                mode="sum",
+                sparse=True,
+                per_sample_weights=per_sample_weights,
+            ).sum()
+
+        weight = torch.randn(8, 4, device=self.device, requires_grad=True)
+        expected = fn(weight)
+        expected.backward()
+        expected_grad = weight.grad.to_dense()
+
+        actual_weight = weight.detach().clone().requires_grad_()
+        actual = torch.compile(fn)(actual_weight)
+        actual.backward()
+        self.assertEqual(actual, expected)
+        self.assertTrue(actual_weight.grad.is_sparse)
+        self.assertEqual(actual_weight.grad.to_dense(), expected_grad)
+
     def test_batch_norm_2d(self):
         m = torch.nn.Sequential(
             torch.nn.BatchNorm2d(10),

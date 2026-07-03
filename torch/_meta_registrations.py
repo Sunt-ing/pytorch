@@ -8136,6 +8136,8 @@ def meta_embedding_bag_backward(
     padding_idx=-1,
 ):
     if sparse:
+        if indices.numel() != 0 and offset2bag.numel() == 0:
+            offset2bag = offsets.new_empty(indices.size(0))
         return aten._embedding_bag_sparse_backward(
             grad,
             indices,
