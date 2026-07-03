@@ -218,6 +218,28 @@ class TestSWAUtils(TestCase):
             for b_avg, b_swa in zip(dnn.buffers(), averaged_dnn.module.buffers()):
                 self.assertEqual(b_avg, b_swa)
 
+    @parametrize("use_explicit_multi_avg_fn", [False, True])
+    def test_averaged_model_swa_int_buffers(self, device, use_explicit_multi_avg_fn):
+        dnn = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 5, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(5),
+        ).to(device)
+        if use_explicit_multi_avg_fn:
+            averaged_dnn = AveragedModel(
+                dnn, multi_avg_fn=get_swa_multi_avg_fn(), use_buffers=True
+            )
+        else:
+            averaged_dnn = AveragedModel(dnn, use_buffers=True)
+
+        for _ in range(3):
+            dnn(torch.randn(2, 1, 4, 4, device=device))
+            averaged_dnn.update_parameters(dnn)
+
+        self.assertEqual(
+            averaged_dnn.module[1].num_batches_tracked,
+            torch.ones((), dtype=torch.long, device=device),
+        )
+
     def _test_update_bn(self, dnn, dl_x, dl_xy, device):
         preactivation_sum = torch.zeros(dnn.n_features, device=device)
         preactivation_squared_sum = torch.zeros(dnn.n_features, device=device)
