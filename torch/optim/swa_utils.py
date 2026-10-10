@@ -101,16 +101,11 @@ def get_swa_multi_avg_fn():
                 cast(float, 1 / (num_averaged + 1)),
             )
         else:
-            diffs = torch._foreach_sub(current_param_list, averaged_param_list)
-            if isinstance(num_averaged, Tensor):
-                torch._foreach_addcdiv_(
-                    averaged_param_list,
-                    diffs,
-                    [num_averaged + 1] * len(averaged_param_list),
-                )
-            else:
-                torch._foreach_add_(
-                    averaged_param_list, diffs, alpha=1.0 / (num_averaged + 1)
+            for p_averaged, p_model in zip(
+                averaged_param_list, current_param_list, strict=True
+            ):
+                p_averaged.copy_(
+                    p_averaged + (p_model - p_averaged) / (num_averaged + 1)
                 )
 
     return swa_update

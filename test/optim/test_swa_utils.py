@@ -244,6 +244,20 @@ class TestSWAUtils(TestCase):
             # Check that AveragedModel is on the correct device
             self.assertTrue(p_avg.device == p_swa.device)
 
+    @parametrize("explicit_multi_avg_fn", [False, True])
+    def test_averaged_model_integer_buffers(self, device, explicit_multi_avg_fn):
+        model = torch.nn.BatchNorm1d(2).to(device)
+        averaged = AveragedModel(
+            model,
+            use_buffers=True,
+            multi_avg_fn=get_swa_multi_avg_fn() if explicit_multi_avg_fn else None,
+        )
+        # Include a decreasing counter to check truncation of the final average.
+        for count, expected in ((3, 3), (2, 2), (4, 2)):
+            model.num_batches_tracked.fill_(count)
+            averaged.update_parameters(model)
+            self.assertEqual(averaged.module.num_batches_tracked, expected)
+
     def _test_update_bn(self, dnn, dl_x, dl_xy, device):
         preactivation_sum = torch.zeros(dnn.n_features, device=device)
         preactivation_squared_sum = torch.zeros(dnn.n_features, device=device)
