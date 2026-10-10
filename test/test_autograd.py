@@ -1969,6 +1969,33 @@ class TestAutograd(TestCase):
         torch.autograd.backward(x, inputs=(y,))  # allow_unused is implicitly True!
         self.assertIsNone(y.grad)
 
+    @parametrize("create_graph", [False, True])
+    @parametrize("layout", [torch.strided, torch.sparse_coo, torch.sparse_csr])
+    def test_grad_batched_materialize_unused(self, create_graph, layout):
+        x = torch.randn(2, requires_grad=True)
+        unused = torch.randn(2, 4).t()
+        if layout != torch.strided:
+            unused = unused.to_sparse(layout=layout)
+        unused.requires_grad_()
+        grad_x, grad_unused = torch.autograd.grad(
+            x.sum(),
+            (x, unused),
+            grad_outputs=torch.ones(3),
+            is_grads_batched=True,
+            materialize_grads=True,
+            create_graph=create_graph,
+        )
+        self.assertEqual(grad_x, torch.ones(3, 2))
+        self.assertEqual(grad_unused.to_dense(), torch.zeros(3, 4, 2))
+        self.assertEqual(grad_unused.layout, layout)
+        self.assertEqual(grad_unused.requires_grad, create_graph)
+        self.assertTrue(grad_unused.is_leaf)
+        if create_graph:
+            (second_grad,) = torch.autograd.grad(
+                grad_unused.sum(), unused, materialize_grads=True
+            )
+            self.assertEqual(second_grad.to_dense(), torch.zeros(4, 2))
+
     def test_grad_batched_grad(self):
         x = torch.randn(2, 2, requires_grad=True)
 

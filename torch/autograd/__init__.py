@@ -608,8 +608,25 @@ def grad(
             raise RuntimeError(
                 "materialize_grads cannot be used when the given input is a GradientEdge"
             )
+        batch_size = (
+            next(g.shape[0] for g in grad_outputs_ if g is not None)
+            if is_grads_batched
+            else None
+        )
         result = tuple(
-            r if r is not None else torch.zeros_like(inp, requires_grad=create_graph)
+            r
+            if r is not None
+            else (
+                torch.zeros_like(inp, requires_grad=create_graph)
+                if batch_size is None
+                else torch.zeros(
+                    (batch_size, *inp.shape),
+                    dtype=inp.dtype,
+                    layout=inp.layout,
+                    device=inp.device,
+                    requires_grad=create_graph,
+                )
+            )
             for (r, inp) in zip(
                 result,
                 cast(tuple[torch.Tensor, ...], inputs_tuple),
